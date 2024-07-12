@@ -1,5 +1,5 @@
 const express = require("express");
-const { MongoClient, ObjectId } = require("mongodb");
+const { MongoClient } = require("mongodb");
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -17,42 +17,7 @@ const client = new MongoClient(uri, {
 // Middleware to parse JSON request bodies
 app.use(express.json());
 
-// Define routes and MongoDB operations
-app.post("/persons", async (req, res) => {
-  try {
-    await client.connect();
-    const database = client.db("booking");
-    const collection = database.collection("Person");
-
-    const { fullName, birthdate } = req.body;
-    const result = await collection.insertOne({ fullName, birthdate });
-
-    res.status(201).json({ message: "Person created", person: result.ops[0] });
-  } catch (err) {
-    console.error("Error inserting person:", err);
-    res.status(500).json({ message: "Failed to create person" });
-  } finally {
-    await client.close();
-  }
-});
-
-app.get("/persons", async (req, res) => {
-  try {
-    await client.connect();
-    const database = client.db("booking");
-    const collection = database.collection("Person");
-
-    const persons = await collection.find().toArray();
-
-    res.json(persons);
-  } catch (err) {
-    console.error("Error fetching persons:", err);
-    res.status(500).json({ message: "Failed to fetch persons" });
-  } finally {
-    await client.close();
-  }
-});
-
+// Endpoint to fetch persons by birthdate range
 app.post("/person/getDataByBirthDate", async (req, res) => {
   const { dateFrom, dateTo } = req.body;
 
@@ -60,6 +25,16 @@ app.post("/person/getDataByBirthDate", async (req, res) => {
     await client.connect();
     const database = client.db("booking");
     const collection = database.collection("Person");
+
+    // Validate dateFrom and dateTo format
+    if (!isValidDate(dateFrom) || !isValidDate(dateTo)) {
+      return res
+        .status(400)
+        .json({
+          status: 400,
+          message: "Invalid date format. Please use YYYY-MM-DD.",
+        });
+    }
 
     // Construct query to find persons between dateFrom and dateTo
     const query = {
@@ -71,14 +46,27 @@ app.post("/person/getDataByBirthDate", async (req, res) => {
 
     const persons = await collection.find(query).toArray();
 
-    res.json(persons);
+    res
+      .status(200)
+      .json({
+        status: 200,
+        message: "Persons fetched successfully",
+        data: persons,
+      });
   } catch (err) {
     console.error("Error fetching persons by birthdate:", err);
-    res.status(500).json({ message: "Failed to fetch persons by birthdate" });
+    res
+      .status(500)
+      .json({ status: 500, message: "Failed to fetch persons by birthdate" });
   } finally {
     await client.close();
   }
 });
+
+// Helper function to validate date format
+function isValidDate(dateString) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(dateString);
+}
 
 // Start the server
 app.listen(port, () => {
